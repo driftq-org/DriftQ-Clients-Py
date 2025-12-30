@@ -7,6 +7,11 @@ requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 authors = [{ name = "DriftQ Org" }]
 
+dependencies = [
+  "httpx",
+  "opentelemetry-api",
+]
+
 [project.urls]
 Homepage = "https://github.com/driftq-org/driftq-clients-py"
 
