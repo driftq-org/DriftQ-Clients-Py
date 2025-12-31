@@ -9,6 +9,8 @@ from typing import Any, Dict, Mapping, Optional
 
 import httpx
 
+_DEFAULT = object()
+
 # OpenTelemetry is optional at runtime; if not present, tracing becomes a no-op
 try:
     from opentelemetry.propagate import inject as otel_inject
@@ -131,7 +133,7 @@ class HttpClient:
         params: Optional[Mapping[str, str]] = None,
         json: Any | None = None,
         headers: Optional[Dict[str, str]] = None,
-        timeout_s: Optional[float] = None
+        timeout_s: float | None | object = _DEFAULT
     ) -> Any:
         hdrs: Dict[str, str] = {"Accept": "application/json", "User-Agent": self.user_agent}
         if headers:
@@ -140,7 +142,11 @@ class HttpClient:
         if not self.tracing.disable and otel_inject is not None:
             otel_inject(hdrs)
 
-        effective_timeout = self.timeout_s if timeout_s is None else timeout_s
+        # Default timeout unless caller explicitly overrides
+        if timeout_s is _DEFAULT:
+            effective_timeout = self.timeout_s
+        else:
+            effective_timeout = timeout_s  # float or None
 
         cfg = self.retry
         if cfg.max_attempts <= 1 or not _can_retry(method, hdrs):
@@ -169,7 +175,6 @@ class HttpClient:
                 if not _retryable_status(resp.status_code):
                     return await self._decode_or_raise(resp)
 
-                # retryable status
                 if attempt == cfg.max_attempts:
                     return await self._decode_or_raise(resp)
 
@@ -180,7 +185,6 @@ class HttpClient:
                     wait = _backoff_s(cfg.base_delay_s, cfg.max_delay_s, attempt)
 
                 await asyncio.sleep(wait)
-                continue
 
             except httpx.TransportError as e:
                 last_err = e
@@ -189,7 +193,6 @@ class HttpClient:
                 wait = _backoff_s(cfg.base_delay_s, cfg.max_delay_s, attempt)
                 await asyncio.sleep(wait)
 
-        # defensive
         if last_err:
             raise last_err
         raise DriftQError("request failed")
@@ -201,11 +204,15 @@ class HttpClient:
         *,
         params: Optional[Mapping[str, str]] = None,
         headers: Optional[Dict[str, str]] = None,
-        timeout_s: Optional[float] = None
+        timeout_s: float | None | object = _DEFAULT
     ):
         """
-        Streaming helper used for NDJSON consume.
-        Pass timeout_s=None to disable timeouts (stream lifetime controlled externally)
+        Streaming helper used for NDJSON consume
+
+        Default behavior: NO timeout (stream lifetime controlled by caller cancellation)
+        - timeout_s is _DEFAULT -> disable timeouts
+        - timeout_s is a float -> apply that timeout
+        - timeout_s is None -> disable timeouts explicitly
         """
         hdrs: Dict[str, str] = {"User-Agent": self.user_agent}
         if headers:
@@ -214,7 +221,11 @@ class HttpClient:
         if not self.tracing.disable and otel_inject is not None:
             otel_inject(hdrs)
 
-        effective_timeout = self.timeout_s if timeout_s is None else timeout_s
+        # For streams: default should be NO timeout unless caller explicitly sets one
+        if timeout_s is _DEFAULT:
+            effective_timeout = None
+        else:
+            effective_timeout = timeout_s  # float or None
 
         async with self._client.stream(
             method,

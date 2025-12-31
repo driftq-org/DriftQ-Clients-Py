@@ -1,6 +1,10 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 from .types import Message
-from .client import DriftQ
+
+
+if TYPE_CHECKING:
+    from .client import DriftQ
 
 class Producer:
     def __init__(self, topic: str, client: DriftQ) -> None:
