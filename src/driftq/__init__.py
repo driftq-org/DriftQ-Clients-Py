@@ -1,8 +1,21 @@
 from .client import DriftQ
-from .types import Message, DriftQConfig
+from .types import ConsumeOptions, ConsumeMessage, DriftQConfig, Message, Envelope, RetryPolicy
 from .producer import Producer
 from .consumer import Consumer
+from .worker import Worker, WorkerConfig
 from .admin import Admin
 
-__all__ = ["DriftQ", "Message", "DriftQConfig", "Producer", "Consumer", "Admin"]
-__version__ = "0.1.0"
+__all__ = [
+    "DriftQ",
+    "DriftQConfig",
+    "Message",
+    "Envelope",
+    "RetryPolicy",
+    "Producer",
+    "Consumer",
+    "Admin",
+    "ConsumeOptions",
+    "ConsumeMessage",
+    "Worker",
+    "WorkerConfig",
+]
